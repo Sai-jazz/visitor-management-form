@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Visitor Registration | Security Gate</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visitor Registration</title>
     <style>
         * {
             margin: 0;
@@ -12,7 +12,7 @@
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
@@ -82,42 +82,6 @@
             outline: none;
             border-color: #2a5298;
             box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.1);
-        }
-        
-        .photo-section {
-            background: #f8f9fa;
-            border-radius: 12px;
-            padding: 16px;
-            text-align: center;
-        }
-        
-        .selfie-preview {
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            background: #e0e0e0;
-            margin: 0 auto 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-        
-        .selfie-preview img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .secondary-btn {
-            background: #e0e0e0;
-            color: #333;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 24px;
-            font-size: 14px;
-            cursor: pointer;
-            font-weight: 500;
         }
         
         .submit-btn {
@@ -191,31 +155,14 @@
             border-top: 1px solid #e0e0e0;
         }
         
-        .footer p:first-child {
-            margin-bottom: 8px;
-        }
-        
-        .footer p:last-child {
-            color: #ff9800;
-            font-weight: 500;
-        }
-        
-        @media (max-width: 480px) {
-            body {
-                padding: 10px;
-            }
-            
-            .header {
-                padding: 24px 16px;
-            }
-            
-            .header h1 {
-                font-size: 20px;
-            }
-            
-            .form-container {
-                padding: 20px;
-            }
+        .connection-status {
+            background: #fff3cd;
+            color: #856404;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            margin-bottom: 15px;
+            text-align: center;
         }
     </style>
 </head>
@@ -224,32 +171,33 @@
         <div class="header">
             <div class="logo">🏢</div>
             <h1>Visitor Registration</h1>
-            <p>Please fill in your details to enter the premises</p>
+            <p>Please fill in your details to enter</p>
         </div>
         
         <div class="form-container">
+            <div id="connectionStatus" class="connection-status">🔄 Checking connection...</div>
             <div id="successMessage" class="alert success" style="display: none;"></div>
             <div id="errorMessage" class="alert error" style="display: none;"></div>
             
             <form id="visitorForm">
                 <div class="form-group">
-                    <label for="name">Your Name *</label>
-                    <input type="text" id="name" name="name" required placeholder="Enter your full name">
+                    <label>Your Name *</label>
+                    <input type="text" id="name" required placeholder="Enter your full name">
                 </div>
                 
                 <div class="form-group">
-                    <label for="phone">Phone Number *</label>
-                    <input type="tel" id="phone" name="phone" required placeholder="10-digit mobile number">
+                    <label>Phone Number *</label>
+                    <input type="tel" id="phone" required placeholder="10-digit mobile number">
                 </div>
                 
                 <div class="form-group">
-                    <label for="flat">Visiting Flat Number *</label>
-                    <input type="text" id="flat" name="flat" required placeholder="e.g., 204, Tower A-302">
+                    <label>Visiting Flat Number *</label>
+                    <input type="text" id="flat" required placeholder="e.g., 204">
                 </div>
                 
                 <div class="form-group">
-                    <label for="purpose">Purpose of Visit *</label>
-                    <select id="purpose" name="purpose" required>
+                    <label>Purpose *</label>
+                    <select id="purpose" required>
                         <option value="">Select purpose</option>
                         <option value="delivery">📦 Food / Package Delivery</option>
                         <option value="guest">👤 Guest / Friend</option>
@@ -259,18 +207,8 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="vehicle">Vehicle Number (Optional)</label>
-                    <input type="text" id="vehicle" name="vehicle" placeholder="e.g., KA-01-AB-1234">
-                </div>
-                
-                <div class="form-group">
-                    <label>Take a Selfie (Optional)</label>
-                    <div class="photo-section">
-                        <div id="selfiePreview" class="selfie-preview"></div>
-                        <button type="button" id="captureBtn" class="secondary-btn">📸 Capture Photo</button>
-                        <input type="file" id="photoUpload" accept="image/*" style="display: none;">
-                        <input type="hidden" id="selfieData">
-                    </div>
+                    <label>Vehicle Number (Optional)</label>
+                    <input type="text" id="vehicle" placeholder="e.g., KA-01-AB-1234">
                 </div>
                 
                 <button type="submit" id="submitBtn" class="submit-btn">Submit & Notify Resident</button>
@@ -289,94 +227,54 @@
     </div>
     
     <script>
-        const API_URL = 'https://visitor-management-backend-79wr.onrender.com';
-
-
+        // =====================================================
+        // CONFIGURATION - UPDATE THESE VALUES
+        // =====================================================
+        
+        // Backend URL (change if backend is on different port)
+        const API_URL = 'http://localhost:3000';
+        
+        // IMPORTANT: Get this from Supabase - run: SELECT id, name FROM apartments;
+        // Replace with your actual apartment ID
+        const APARTMENT_ID = '192734af-154b-4be8-aa42-3018bd5c648b';  // ← CHANGE THIS!
+        
+        // =====================================================
+        // TEST CONNECTION ON PAGE LOAD
+        // =====================================================
+        
+        async function testConnection() {
+            const statusDiv = document.getElementById('connectionStatus');
+            try {
+                const response = await fetch(`${API_URL}/api/apartments`);
+                if (response.ok) {
+                    const data = await response.json();
+                    statusDiv.innerHTML = `✅ Connected to server. Found ${data.apartments?.length || 0} apartments.`;
+                    statusDiv.style.background = '#d4edda';
+                    statusDiv.style.color = '#155724';
+                } else {
+                    statusDiv.innerHTML = '⚠️ Server responded but with error. Make sure backend is running.';
+                    statusDiv.style.background = '#fff3cd';
+                    statusDiv.style.color = '#856404';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '❌ Cannot connect to backend. Make sure server is running on port 3000';
+                statusDiv.style.background = '#f8d7da';
+                statusDiv.style.color = '#721c24';
+                console.error('Connection test failed:', error);
+            }
+        }
+        
+        testConnection();
+        
+        // =====================================================
+        // FORM SUBMISSION
+        // =====================================================
         
         const form = document.getElementById('visitorForm');
         const successDiv = document.getElementById('successMessage');
         const errorDiv = document.getElementById('errorMessage');
         const loadingSpinner = document.getElementById('loadingSpinner');
         const submitBtn = document.getElementById('submitBtn');
-        const captureBtn = document.getElementById('captureBtn');
-        const photoUpload = document.getElementById('photoUpload');
-        const selfiePreview = document.getElementById('selfiePreview');
-        const selfieData = document.getElementById('selfieData');
-        
-        // Camera capture
-        captureBtn.addEventListener('click', () => {
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ video: true })
-                    .then(stream => {
-                        const video = document.createElement('video');
-                        video.srcObject = stream;
-                        video.play();
-                        
-                        const modal = document.createElement('div');
-                        modal.style.position = 'fixed';
-                        modal.style.top = '0';
-                        modal.style.left = '0';
-                        modal.style.width = '100%';
-                        modal.style.height = '100%';
-                        modal.style.backgroundColor = 'rgba(0,0,0,0.9)';
-                        modal.style.zIndex = '1000';
-                        modal.style.display = 'flex';
-                        modal.style.alignItems = 'center';
-                        modal.style.justifyContent = 'center';
-                        modal.style.flexDirection = 'column';
-                        
-                        video.style.width = '100%';
-                        video.style.maxWidth = '400px';
-                        video.style.borderRadius = '12px';
-                        
-                        const captureButton = document.createElement('button');
-                        captureButton.textContent = 'Capture';
-                        captureButton.style.marginTop = '20px';
-                        captureButton.style.padding = '12px 24px';
-                        captureButton.style.backgroundColor = '#2a5298';
-                        captureButton.style.color = 'white';
-                        captureButton.style.border = 'none';
-                        captureButton.style.borderRadius = '24px';
-                        captureButton.style.cursor = 'pointer';
-                        
-                        captureButton.onclick = () => {
-                            const canvas = document.createElement('canvas');
-                            canvas.width = video.videoWidth;
-                            canvas.height = video.videoHeight;
-                            canvas.getContext('2d').drawImage(video, 0, 0);
-                            const dataURL = canvas.toDataURL('image/jpeg', 0.8);
-                            
-                            selfiePreview.innerHTML = `<img src="${dataURL}" alt="Selfie">`;
-                            selfieData.value = dataURL;
-                            
-                            stream.getTracks().forEach(track => track.stop());
-                            document.body.removeChild(modal);
-                        };
-                        
-                        modal.appendChild(video);
-                        modal.appendChild(captureButton);
-                        document.body.appendChild(modal);
-                    })
-                    .catch(err => {
-                        console.error('Camera error:', err);
-                        photoUpload.click();
-                    });
-            } else {
-                photoUpload.click();
-            }
-        });
-        
-        photoUpload.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    selfiePreview.innerHTML = `<img src="${e.target.result}" alt="Selfie">`;
-                    selfieData.value = e.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
-        });
         
         function showMessage(element, message, isError = false) {
             element.textContent = message;
@@ -396,8 +294,8 @@
             const flat = document.getElementById('flat').value.trim();
             const purpose = document.getElementById('purpose').value;
             const vehicle = document.getElementById('vehicle').value.trim();
-            const selfie = selfieData.value;
             
+            // Validation
             if (!name || !phone || !flat || !purpose) {
                 showMessage(errorDiv, 'Please fill in all required fields', true);
                 return;
@@ -408,11 +306,22 @@
                 return;
             }
             
+            // Check if APARTMENT_ID is configured
+            if (APARTMENT_ID === 'YOUR_APARTMENT_ID_HERE') {
+                showMessage(errorDiv, 'Apartment not configured. Please contact security.', true);
+                console.error('APARTMENT_ID not set in the form');
+                return;
+            }
+            
+            // Disable form during submission
             submitBtn.disabled = true;
             loadingSpinner.style.display = 'block';
             
             try {
-                const response = await fetch(`${API_URL}/api/apartments/abc12345-6789-def0-1234-56789abcdef0/visitors/register`, {
+                console.log('Submitting to:', `${API_URL}/api/apartments/${APARTMENT_ID}/visitors/register`);
+                console.log('Data:', { name, phone, flat, purpose, vehicle });
+                
+                const response = await fetch(`${API_URL}/api/apartments/${APARTMENT_ID}/visitors/register`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -423,28 +332,27 @@
                         flat,
                         purpose,
                         vehicle,
-                        selfie
+                        selfie: null
                     })
                 });
                 
                 const data = await response.json();
+                console.log('Response:', data);
                 
-                if (data.success) {
+                if (response.ok && data.success) {
                     showMessage(successDiv, `
                         ✅ Registration Successful!<br>
                         Approval ID: ${data.approvalId}<br>
                         Please wait at the gate. Security will call you shortly.
                     `);
                     form.reset();
-                    selfiePreview.innerHTML = '';
-                    selfieData.value = '';
                 } else {
-                    showMessage(errorDiv, data.error || 'Registration failed', true);
+                    showMessage(errorDiv, data.error || 'Registration failed. Please try again.', true);
                 }
                 
             } catch (error) {
                 console.error('Submission error:', error);
-                showMessage(errorDiv, 'Network error. Please try again.', true);
+                showMessage(errorDiv, `Network error: ${error.message}. Make sure backend is running on port 3000.`, true);
             } finally {
                 submitBtn.disabled = false;
                 loadingSpinner.style.display = 'none';
