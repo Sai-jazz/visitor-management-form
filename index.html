@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visitor Registration</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Visitor Registration | SecureGate</title>
     <style>
         * {
             margin: 0;
@@ -126,6 +126,12 @@
             border: 1px solid #f5c6cb;
         }
         
+        .alert.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
         .loading {
             text-align: center;
             margin-top: 20px;
@@ -164,6 +170,22 @@
             margin-bottom: 15px;
             text-align: center;
         }
+
+        /* Mobile optimizations */
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            .header {
+                padding: 24px 16px;
+            }
+            .form-container {
+                padding: 20px;
+            }
+            input, select {
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+        }
     </style>
 </head>
 <body>
@@ -178,21 +200,22 @@
             <div id="connectionStatus" class="connection-status">🔄 Checking connection...</div>
             <div id="successMessage" class="alert success" style="display: none;"></div>
             <div id="errorMessage" class="alert error" style="display: none;"></div>
+            <div id="infoMessage" class="alert info" style="display: none;"></div>
             
             <form id="visitorForm">
                 <div class="form-group">
                     <label>Your Name *</label>
-                    <input type="text" id="name" required placeholder="Enter your full name">
+                    <input type="text" id="name" required placeholder="Enter your full name" autocomplete="name">
                 </div>
                 
                 <div class="form-group">
                     <label>Phone Number *</label>
-                    <input type="tel" id="phone" required placeholder="10-digit mobile number">
+                    <input type="tel" id="phone" required placeholder="10-digit mobile number" autocomplete="tel" pattern="[0-9]{10}" maxlength="10">
                 </div>
                 
                 <div class="form-group">
                     <label>Visiting Flat Number *</label>
-                    <input type="text" id="flat" required placeholder="e.g., 204">
+                    <input type="text" id="flat" required placeholder="e.g., 204" autocomplete="off">
                 </div>
                 
                 <div class="form-group">
@@ -208,7 +231,7 @@
                 
                 <div class="form-group">
                     <label>Vehicle Number (Optional)</label>
-                    <input type="text" id="vehicle" placeholder="e.g., KA-01-AB-1234">
+                    <input type="text" id="vehicle" placeholder="e.g., KA-01-AB-1234" autocomplete="off">
                 </div>
                 
                 <button type="submit" id="submitBtn" class="submit-btn">Submit & Notify Resident</button>
@@ -228,15 +251,41 @@
     
     <script>
         // =====================================================
-        // CONFIGURATION - UPDATE THESE VALUES
+        // PRODUCTION CONFIGURATION
         // =====================================================
         
-        // Backend URL (change if backend is on different port)
+        // Backend URL (Your Render backend)
         const API_URL = 'https://visitor-management-backend-1-aveq.onrender.com';
         
-        // IMPORTANT: Get this from Supabase - run: SELECT id, name FROM apartments;
-        // Replace with your actual apartment ID
-        const APARTMENT_ID = '192734af-154b-4be8-aa42-3018bd5c648b';  // green vally apartments for now
+        // Apartment ID - Green Valley Apartments
+        const APARTMENT_ID = '192734af-154b-4be8-aa42-3018bd5c648b';
+        
+        // Retry configuration
+        const MAX_RETRIES = 2;
+        const RETRY_DELAY = 1000;
+        
+        // =====================================================
+        // HELPER FUNCTIONS
+        // =====================================================
+        
+        async function fetchWithRetry(url, options, retries = MAX_RETRIES) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok && retries > 0) {
+                    console.log(`Retrying... (${MAX_RETRIES - retries + 1})`);
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+                    return fetchWithRetry(url, options, retries - 1);
+                }
+                return response;
+            } catch (error) {
+                if (retries > 0) {
+                    console.log(`Retry due to error: ${error.message}`);
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+                    return fetchWithRetry(url, options, retries - 1);
+                }
+                throw error;
+            }
+        }
         
         // =====================================================
         // TEST CONNECTION ON PAGE LOAD
@@ -245,26 +294,30 @@
         async function testConnection() {
             const statusDiv = document.getElementById('connectionStatus');
             try {
-                const response = await fetch(`${API_URL}/api/apartments`);
+                const response = await fetchWithRetry(`${API_URL}/api/apartments`, { method: 'GET' }, 1);
+                
                 if (response.ok) {
                     const data = await response.json();
                     statusDiv.innerHTML = `✅ Connected to server. Found ${data.apartments?.length || 0} apartments.`;
                     statusDiv.style.background = '#d4edda';
                     statusDiv.style.color = '#155724';
+                    
+                    // Hide after 3 seconds
+                    setTimeout(() => {
+                        statusDiv.style.display = 'none';
+                    }, 3000);
                 } else {
-                    statusDiv.innerHTML = '⚠️ Server responded but with error. Make sure backend is running.';
+                    statusDiv.innerHTML = '⚠️ Server responded but with error. Please try again.';
                     statusDiv.style.background = '#fff3cd';
                     statusDiv.style.color = '#856404';
                 }
             } catch (error) {
-                statusDiv.innerHTML = '❌ Cannot connect to backend. Make sure server is running on port 3000';
+                statusDiv.innerHTML = '❌ Cannot connect to server. Please check your internet connection.';
                 statusDiv.style.background = '#f8d7da';
                 statusDiv.style.color = '#721c24';
                 console.error('Connection test failed:', error);
             }
         }
-        
-        testConnection();
         
         // =====================================================
         // FORM SUBMISSION
@@ -273,27 +326,41 @@
         const form = document.getElementById('visitorForm');
         const successDiv = document.getElementById('successMessage');
         const errorDiv = document.getElementById('errorMessage');
+        const infoDiv = document.getElementById('infoMessage');
         const loadingSpinner = document.getElementById('loadingSpinner');
         const submitBtn = document.getElementById('submitBtn');
         
-        function showMessage(element, message, isError = false) {
+        function showMessage(element, message, isError = false, isInfo = false) {
             element.textContent = message;
             element.style.display = 'block';
-            element.className = `alert ${isError ? 'error' : 'success'}`;
+            if (isError) {
+                element.className = 'alert error';
+            } else if (isInfo) {
+                element.className = 'alert info';
+            } else {
+                element.className = 'alert success';
+            }
             
             setTimeout(() => {
                 element.style.display = 'none';
             }, 5000);
         }
         
+        // Phone number formatting
+        const phoneInput = document.getElementById('phone');
+        phoneInput.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/\D/g, '').slice(0, 10);
+            e.target.value = value;
+        });
+        
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const name = document.getElementById('name').value.trim();
             const phone = document.getElementById('phone').value.trim();
-            const flat = document.getElementById('flat').value.trim();
+            const flat = document.getElementById('flat').value.trim().toUpperCase();
             const purpose = document.getElementById('purpose').value;
-            const vehicle = document.getElementById('vehicle').value.trim();
+            const vehicle = document.getElementById('vehicle').value.trim().toUpperCase();
             
             // Validation
             if (!name || !phone || !flat || !purpose) {
@@ -306,22 +373,24 @@
                 return;
             }
             
-            // Check if APARTMENT_ID is configured
-            if (APARTMENT_ID === 'YOUR_APARTMENT_ID_HERE') {
-                showMessage(errorDiv, 'Apartment not configured. Please contact security.', true);
-                console.error('APARTMENT_ID not set in the form');
+            if (flat.length < 1) {
+                showMessage(errorDiv, 'Please enter a valid flat number', true);
                 return;
             }
+            
+            // Show info message
+            showMessage(infoDiv, 'Submitting your request...', false, true);
             
             // Disable form during submission
             submitBtn.disabled = true;
             loadingSpinner.style.display = 'block';
+            infoDiv.style.display = 'none';
             
             try {
                 console.log('Submitting to:', `${API_URL}/api/apartments/${APARTMENT_ID}/visitors/register`);
                 console.log('Data:', { name, phone, flat, purpose, vehicle });
                 
-                const response = await fetch(`${API_URL}/api/apartments/${APARTMENT_ID}/visitors/register`, {
+                const response = await fetchWithRetry(`${API_URL}/api/apartments/${APARTMENT_ID}/visitors/register`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -331,7 +400,7 @@
                         phone,
                         flat,
                         purpose,
-                        vehicle,
+                        vehicle: vehicle || null,
                         selfie: null
                     })
                 });
@@ -341,8 +410,8 @@
                 
                 if (response.ok && data.success) {
                     showMessage(successDiv, `
-                        ✅ Registration Successful!<br>
-                        Approval ID: ${data.approvalId}<br>
+                        ✅ Registration Successful!
+                        Approval ID: ${data.approvalId}
                         Please wait at the gate. Security will call you shortly.
                     `);
                     form.reset();
@@ -352,12 +421,16 @@
                 
             } catch (error) {
                 console.error('Submission error:', error);
-                showMessage(errorDiv, `Network error: ${error.message}. Make sure backend is running on port 3000.`, true);
+                showMessage(errorDiv, `Connection error. Please check your internet and try again.`, true);
             } finally {
                 submitBtn.disabled = false;
                 loadingSpinner.style.display = 'none';
+                infoDiv.style.display = 'none';
             }
         });
+        
+        // Test connection on page load
+        testConnection();
     </script>
 </body>
 </html>
